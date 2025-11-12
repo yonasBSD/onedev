@@ -263,6 +263,8 @@ public class PullRequestQueryBehavior extends ANTLRAssistBehavior {
 				}
 			}
 		} 
+		if (getSettingService().getAISetting().getNaturalLanguageQueryModelSetting() == null)
+			hints.add(_T("Set up AI to use natural language query"));
 		return hints;
 	}
 
