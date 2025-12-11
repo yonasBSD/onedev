@@ -172,9 +172,13 @@ import io.onedev.server.search.entitytext.DefaultIssueTextService;
 import io.onedev.server.search.entitytext.DefaultPullRequestTextService;
 import io.onedev.server.search.entitytext.IssueTextService;
 import io.onedev.server.search.entitytext.PullRequestTextService;
+import io.onedev.server.security.AuthenticatingService;
+import io.onedev.server.security.AuthorizingService;
 import io.onedev.server.security.BasicAuthenticationFilter;
 import io.onedev.server.security.BearerAuthenticationFilter;
 import io.onedev.server.security.CodePullAuthorizationSource;
+import io.onedev.server.security.DefaultAuthenticatingService;
+import io.onedev.server.security.DefaultAuthorizingService;
 import io.onedev.server.security.DefaultFilterChainResolver;
 import io.onedev.server.security.DefaultPasswordService;
 import io.onedev.server.security.DefaultRememberMeManager;
@@ -182,7 +186,6 @@ import io.onedev.server.security.DefaultShiroFilterConfiguration;
 import io.onedev.server.security.DefaultWebSecurityManager;
 import io.onedev.server.security.FilterChainConfigurator;
 import io.onedev.server.security.SecurityUtils;
-import io.onedev.server.security.realm.GeneralAuthorizingRealm;
 import io.onedev.server.service.AccessTokenAuthorizationService;
 import io.onedev.server.service.AccessTokenService;
 import io.onedev.server.service.AgentAttributeService;
@@ -651,7 +654,10 @@ public class CoreModule extends AbstractPluginModule {
 	}
 	
 	private void configureSecurity() {
-		contributeFromPackage(Realm.class, GeneralAuthorizingRealm.class);
+		bind(AuthenticatingService.class).to(DefaultAuthenticatingService.class);
+		bind(AuthorizingService.class).to(DefaultAuthorizingService.class);
+		contribute(Realm.class, DefaultAuthorizingService.class);
+		contribute(Realm.class, DefaultAuthenticatingService.class);
 
 		bind(ShiroFilterConfiguration.class).to(DefaultShiroFilterConfiguration.class);
 		bind(RememberMeManager.class).to(DefaultRememberMeManager.class);
