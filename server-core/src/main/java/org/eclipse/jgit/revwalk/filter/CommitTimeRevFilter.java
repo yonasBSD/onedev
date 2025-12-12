@@ -120,7 +120,6 @@ public abstract class CommitTimeRevFilter extends RevFilter {
 			return cmit.getCommitTime() <= when;
 		}
 
-		@SuppressWarnings("nls")
 		@Override
 		public String toString() {
 			return super.toString() + "(" + new Date(when * 1000L) + ")";
@@ -145,7 +144,6 @@ public abstract class CommitTimeRevFilter extends RevFilter {
 			return true;
 		}
 
-		@SuppressWarnings("nls")
 		@Override
 		public String toString() {
 			return super.toString() + "(" + new Date(when * 1000L) + ")";
@@ -167,7 +165,6 @@ public abstract class CommitTimeRevFilter extends RevFilter {
 			return cmit.getCommitTime() <= until && cmit.getCommitTime() >= when;
 		}
 
-		@SuppressWarnings("nls")
 		@Override
 		public String toString() {
 			return super.toString() + "(" + new Date(when * 1000L) + " - "

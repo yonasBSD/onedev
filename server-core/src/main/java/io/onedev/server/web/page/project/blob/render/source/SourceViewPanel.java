@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.inject.Inject;
 import javax.servlet.http.Cookie;
 
 import org.apache.wicket.Component;
@@ -57,16 +58,17 @@ import org.unbescape.html.HtmlEscape;
 import org.unbescape.javascript.JavaScriptEscape;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 
+import dev.langchain4j.agent.tool.ToolSpecification;
 import io.onedev.commons.jsymbol.Symbol;
 import io.onedev.commons.jsymbol.SymbolExtractor;
 import io.onedev.commons.jsymbol.SymbolExtractorRegistry;
 import io.onedev.commons.utils.LinearRange;
 import io.onedev.commons.utils.PlanarRange;
 import io.onedev.commons.utils.StringUtils;
-import io.onedev.server.OneDev;
 import io.onedev.server.attachment.ProjectAttachmentSupport;
 import io.onedev.server.codequality.BlobTarget;
 import io.onedev.server.codequality.CodeProblem;
@@ -92,6 +94,7 @@ import io.onedev.server.service.BuildService;
 import io.onedev.server.service.CodeCommentReplyService;
 import io.onedev.server.service.CodeCommentService;
 import io.onedev.server.service.CodeCommentStatusChangeService;
+import io.onedev.server.service.support.ChatTool;
 import io.onedev.server.util.DateUtils;
 import io.onedev.server.util.Similarities;
 import io.onedev.server.util.diff.DiffUtils;
@@ -125,6 +128,7 @@ import io.onedev.server.web.page.project.blob.render.view.Positionable;
 import io.onedev.server.web.page.project.blob.search.SearchMenuContributor;
 import io.onedev.server.web.page.project.commits.CommitDetailPage;
 import io.onedev.server.web.util.AnnotationInfo;
+import io.onedev.server.web.util.ChatToolAware;
 import io.onedev.server.web.util.CodeCommentInfo;
 import io.onedev.server.web.util.WicketUtils;
 
@@ -134,7 +138,7 @@ import io.onedev.server.web.util.WicketUtils;
  * @author robin
  *
  */
-public class SourceViewPanel extends BlobViewPanel implements Positionable, SearchMenuContributor {
+public class SourceViewPanel extends BlobViewPanel implements Positionable, SearchMenuContributor, ChatToolAware {
 
 	private static final Logger logger = LoggerFactory.getLogger(SourceViewPanel.class);	
 	
@@ -143,6 +147,33 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 	private static final String COOKIE_OUTLINE_WIDTH = "sourceView.outline.width";
 	
 	private static final String COOKIE_COMMENT_WIDTH = "sourceView.comment.width";
+
+	@Inject
+	private ObjectMapper objectMapper;
+
+	@Inject
+	private CodeCommentService codeCommentService;
+
+	@Inject
+	private BuildService buildService;
+
+	@Inject
+	private CodeSearchService searchService;
+
+	@Inject
+	private Set<CodeProblemContribution> codeProblemContributions;
+
+	@Inject
+	private Set<LineCoverageContribution> lineCoverageContributions;
+
+	@Inject
+	private GitService gitService;
+
+	@Inject
+	private CodeCommentReplyService codeCommentReplyService;
+
+	@Inject
+	private CodeCommentStatusChangeService codeCommentStatusChangeService;
 	
 	private final List<Symbol> symbols = new ArrayList<>();
 	
@@ -154,17 +185,15 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 			RevCommit commitId = context.getCommit();
 			String path = context.getBlobIdent().path;
 			
-			CodeCommentService codeCommentService = OneDev.getInstance(CodeCommentService.class);
 			Map<CodeComment, PlanarRange> comments = codeCommentService.queryInHistory(project, commitId, path);
 
 			var problems = new HashSet<CodeProblem>();
 			Map<Integer, CoverageStatus> coverages = new HashMap<>();
 			var lines = context.getProject().getBlob(context.getBlobIdent(), true).getText().getLines();
-			BuildService buildService = OneDev.getInstance(BuildService.class);
 			for (var build: buildService.query(project, commitId, null, null, null, null, new HashMap<>())) {
-				for (var contribution: OneDev.getExtensions(CodeProblemContribution.class)) 
+				for (var contribution: codeProblemContributions) 
 					problems.addAll(contribution.getCodeProblems(build, path, context.getProblemReport()));
-				for (var contribution: OneDev.getExtensions(LineCoverageContribution.class)) { 
+				for (var contribution: lineCoverageContributions) { 
 					contribution.getLineCoverages(build, path, context.getCoverageReport()).forEach((key, value)->{
 						coverages.merge(key, value, CoverageStatus::mergeWith);
 					});
@@ -202,7 +231,6 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 		String blobName = context.getBlobIdent().getName();
 		SymbolExtractor<Symbol> extractor = SymbolExtractorRegistry.getExtractor(blobName);
 		if (extractor != null) {
-			CodeSearchService searchService = OneDev.getInstance(CodeSearchService.class);
 			List<Symbol> cachedSymbols = searchService.getSymbols(context.getProject(), blob.getBlobId(), 
 					blob.getIdent().path);
 			if (cachedSymbols != null) {
@@ -278,7 +306,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 
 	private String convertToJson(Object obj) {
 		try {
-			return OneDev.getInstance(ObjectMapper.class).writeValueAsString(obj);
+			return objectMapper.writeValueAsString(obj);
 		} catch (JsonProcessingException e) {
 			throw new RuntimeException(e);
 		}
@@ -434,7 +462,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 
 				@Override
 				protected void onSaveComment(AjaxRequestTarget target, CodeComment comment) {
-					OneDev.getInstance(CodeCommentService.class).update(comment);
+					codeCommentService.update(comment);
 					target.add(commentContainer.get("head"));
 				}
 
@@ -594,7 +622,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 								comment.setProject(context.getProject());
 								comment.setCompareContext(getCompareContext());
 								
-								OneDev.getInstance(CodeCommentService.class).create(comment);
+								codeCommentService.create(comment);
 								
 								CodeCommentPanel commentPanel = new CodeCommentPanel(fragment.getId(), comment.getId()) {
 
@@ -605,7 +633,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 
 									@Override
 									protected void onSaveComment(AjaxRequestTarget target, CodeComment comment) {
-										OneDev.getInstance(CodeCommentService.class).update(comment);
+										codeCommentService.update(comment);
 										target.add(commentContainer.get("head"));
 									}
 
@@ -663,7 +691,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 
 						@Override
 						protected void onSaveComment(AjaxRequestTarget target, CodeComment comment) {
-							OneDev.getInstance(CodeCommentService.class).update(comment);
+							codeCommentService.update(comment);
 							target.add(commentContainer.get("head"));
 						}
 
@@ -692,7 +720,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 					commentContainer.setVisible(true);
 					target.add(commentContainer);
 					
-					CodeComment comment = OneDev.getInstance(CodeCommentService.class).load(commentId);
+					CodeComment comment = codeCommentService.load(commentId);
 					script = String.format("onedev.server.sourceView.onCommentOpened(%s);", 
 							convertToJson(new CodeCommentInfo(comment, range)));
 					target.appendJavaScript(script);
@@ -964,17 +992,13 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 		}
 		return children;
 	}
-	
-	private GitService getGitService() {
-		return OneDev.getInstance(GitService.class);
-	}
-	
+		
 	private String getJsonOfBlameInfos(boolean blamed) {
 		String jsonOfBlameInfos;
 		if (blamed) {
 			List<BlameInfo> blameInfos = new ArrayList<>();
 			
-			for (BlameBlock blame: getGitService().blame(
+			for (BlameBlock blame: gitService.blame(
 					context.getProject(), context.getCommit().copy(), context.getBlobIdent().path, null)) {
 				BlameInfo blameInfo = new BlameInfo();
 				blameInfo.commitDate = DateUtils.formatDate(blame.getCommit().getCommitter().getWhen());
@@ -1022,11 +1046,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 				explicit("action"), explicit("param1"), explicit("param2"), 
 				explicit("param3"), explicit("param4"), explicit("param5"));
 		
-		PlanarRange markRange = BlobRenderer.getSourceRange(context.getPosition());
-		if (markRange == null)
-			markRange = (PlanarRange) commentContainer.getDefaultModelObject();
-		else
-			markRange = markRange.normalize(blob.getText().getLines());
+		PlanarRange markRange = getMarkRange();
 		
 		var translations = new HashMap<String, String>();
 		translations.put("perma-link", _T("Permanent link of this selection"));
@@ -1260,6 +1280,15 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 		
 		return fragment;
 	}
+
+	private PlanarRange getMarkRange() {
+		PlanarRange markRange = BlobRenderer.getSourceRange(context.getPosition());
+		if (markRange == null)
+			markRange = (PlanarRange) commentContainer.getDefaultModelObject();
+		else
+			markRange = markRange.normalize(context.getProject().getBlob(context.getBlobIdent(), true).getText().getLines());
+		return markRange;
+	}
 	
 	@Override
 	public List<MenuItem> getMenuItems(FloatingPanel dropdown) {
@@ -1314,14 +1343,14 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 	private void onSaveCommentReply(AjaxRequestTarget target, CodeCommentReply reply) {
 		reply.setCompareContext(getCompareContext());
 		if (reply.isNew())
-			OneDev.getInstance(CodeCommentReplyService.class).create(reply);
+			codeCommentReplyService.create(reply);
 		else
-			OneDev.getInstance(CodeCommentReplyService.class).update(reply);
+			codeCommentReplyService.update(reply);
 	}
 	
 	private void onSaveCommentStatusChange(AjaxRequestTarget target, CodeCommentStatusChange change, String note) {
 		change.setCompareContext(getCompareContext());
-		OneDev.getInstance(CodeCommentStatusChangeService.class).create(change, note);
+		codeCommentStatusChangeService.create(change, note);
 	}
 	
 	private SuggestionSupport getSuggestionSupport(Mark mark) {
@@ -1384,6 +1413,57 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 			}
 			
 		};
+	}
+
+	@Override
+	public List<ChatTool> getChatTools() {
+		return List.of(
+			new ChatTool() {
+
+				@Override
+				public ToolSpecification getSpecification() {
+					return ToolSpecification.builder()
+						.name("getCurrentFile")
+						.description("Get detail of current text in json format")
+						.build();
+				}
+
+				@Override
+				public String execute(JsonNode arguments) {
+					var blob = context.getProject().getBlob(context.getBlobIdent(), true);
+					var map = Map.of(
+						"fileName", context.getBlobIdent().getName(),
+						"fileContent", blob.getText().getContent(),
+						"mediaType", blob.getMediaType().toString()
+					);
+					return convertToJson(map);
+				}
+
+			}, 
+			new ChatTool() {
+				
+				@Override
+				public ToolSpecification getSpecification() {
+					return ToolSpecification.builder()
+						.name("getCurrentSelection")
+						.description("Get current selection in json format. Empty object if no selection")
+						.build();
+				}
+
+				@Override
+				public String execute(JsonNode arguments) {
+					var map = new HashMap<String, Object>();
+					PlanarRange markRange = getMarkRange();
+					if (markRange != null) {
+						map.put("fromLineInclusive", markRange.getFromRow() + 1);
+						map.put("fromColumnInclusive", markRange.getFromColumn());
+						map.put("toLineInclusive", markRange.getToRow() + 1);
+						map.put("toColumnExclusive", markRange.getToColumn());
+					}
+					return convertToJson(map);
+				}
+			}
+		);
 	}
 	
 }

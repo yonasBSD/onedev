@@ -93,7 +93,6 @@ public abstract class SubStringRevFilter extends RevFilter {
 		return this; // Typically we are actually thread-safe.
 	}
 
-	@SuppressWarnings("nls")
 	@Override
 	public String toString() {
 		return super.toString() + "(\"" + pattern.pattern() + "\")";
