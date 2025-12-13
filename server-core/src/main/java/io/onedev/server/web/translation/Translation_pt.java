@@ -793,6 +793,7 @@ public class Translation_pt extends TranslationResourceBundle {
 		m.put("Confirm your action", "Confirme sua ação");
 		m.put("Connect New Agent", "Conectar Novo Agente");
 		m.put("Connect with your SSO account", "Conecte-se com sua conta SSO");
+		m.put("Connection lost or session expired, reload to recover", "Conexão perdida ou sessão expirada, recarregue para recuperar");
 		m.put("Contact Email", "Email de Contato");
 		m.put("Contact Name", "Nome de Contato");
 		m.put("Container Image", "Imagem do Container");
@@ -4684,7 +4685,7 @@ public class Translation_pt extends TranslationResourceBundle {
 		m.put("{javax.validation.constraints.NotEmpty.message}", "{javax.validation.constraints.NotEmpty.message}");
 		m.put("{javax.validation.constraints.NotNull.message}", "{javax.validation.constraints.NotNull.message}");
 		m.put("{javax.validation.constraints.Size.message}", "{javax.validation.constraints.Size.message}");
-		m.put("Connection lost or session expired, reload to recover", "Conexão perdida ou sessão expirada, recarregue para recuperar");
+		m.put("Explain selected text with AI", "Explique o texto selecionado com IA");
 	}
 		
 	@Override

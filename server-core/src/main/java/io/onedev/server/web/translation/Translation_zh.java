@@ -812,6 +812,7 @@ public class Translation_zh extends TranslationResourceBundle {
 		m.put("Confirm your action", "确认你的操作");
 		m.put("Connect New Agent", "连接新代理");
 		m.put("Connect with your SSO account", "使用您的 SSO 账户连接");
+		m.put("Connection lost or session expired, reload to recover", "连接丢失或会话过期，重新加载以恢复");
 		m.put("Contact Email", "联系邮箱");
 		m.put("Contact Name", "联系人");
 		m.put("Container Image", "容器镜像");
@@ -4703,7 +4704,7 @@ public class Translation_zh extends TranslationResourceBundle {
 		m.put("{javax.validation.constraints.NotEmpty.message}", "不能为空");
 		m.put("{javax.validation.constraints.NotNull.message}", "不能为空");
 		m.put("{javax.validation.constraints.Size.message}", "至少需要指定一个值");
-		m.put("Connection lost or session expired, reload to recover", "连接丢失或会话过期，重新加载以恢复");
+		m.put("Explain selected text with AI", "用 AI 解释选定文本");
 	}
 		
 	@Override

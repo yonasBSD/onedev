@@ -1,5 +1,7 @@
 package io.onedev.server.web.page.project.blob.render.source;
 
+import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_END;
+import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_BEGIN;
 import static io.onedev.server.web.translation.Translation._T;
 import static org.apache.wicket.ajax.attributes.CallbackParameter.explicit;
 
@@ -60,6 +62,7 @@ import org.unbescape.javascript.JavaScriptEscape;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -120,6 +123,7 @@ import io.onedev.server.web.component.suggestionapply.SuggestionApplyModalPanel;
 import io.onedev.server.web.component.svg.SpriteImage;
 import io.onedev.server.web.component.symboltooltip.SymbolContext;
 import io.onedev.server.web.component.symboltooltip.SymbolTooltipPanel;
+import io.onedev.server.web.page.layout.LayoutPage;
 import io.onedev.server.web.page.project.blob.render.BlobRenderContext;
 import io.onedev.server.web.page.project.blob.render.BlobRenderContext.Mode;
 import io.onedev.server.web.page.project.blob.render.BlobRenderer;
@@ -508,6 +512,13 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 					String script = String.format("onedev.server.sourceView.openSelectionPopover(%s, '%s', %s);", 
 							convertToJson(range), context.getPositionUrl(position), SecurityUtils.getAuthUser()!=null);
 					target.appendJavaScript(script);
+					break;
+				case "explainSelection":
+					range = getRange(params, "param1", "param2", "param3", "param4");					
+					context.onPosition(target, BlobRenderer.getSourcePosition(range));
+					var page = (LayoutPage) getPage();
+					page.getChatter().show(target, "Help me understand highlighted text of current file. Display in " + getSession().getLocale().getDisplayLanguage());
+					target.appendJavaScript(String.format("onedev.server.sourceView.mark(%s, false);", convertToJson(range)));
 					break;
 				case "addComment":
 					Preconditions.checkNotNull(SecurityUtils.getAuthUser());
@@ -1058,6 +1069,10 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 		translations.put("partially-covered-by-some-tests", _T("Partially covered by some tests"));
 		translations.put("unsaved-changes-prompt", _T("There are unsaved changes, discard and continue?"));
 		translations.put("show-comment", _T("Click to show comment of marked text"));
+		var page = (LayoutPage)getPage();
+		if (WicketUtils.isSubscriptionActive() && !page.getChatter().getEntitledAis().isEmpty())
+			translations.put("explain-selection", _T("Explain selected text with AI"));
+		
 		translations.put("loading", _T("Loading..."));
 		for (var severity: CodeProblem.Severity.values())
 			translations.put(severity.name(), _T("severity:" + severity.name()));
@@ -1281,6 +1296,7 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 		return fragment;
 	}
 
+	@Nullable
 	private PlanarRange getMarkRange() {
 		PlanarRange markRange = BlobRenderer.getSourceRange(context.getPosition());
 		if (markRange == null)
@@ -1423,45 +1439,27 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 				@Override
 				public ToolSpecification getSpecification() {
 					return ToolSpecification.builder()
-						.name("getCurrentFile")
-						.description("Get detail of current text in json format")
+						.name("getCurrentFileInformation")
+						.description("Get information of current file in json format. Note that file content may contain highlighted section, which is marked by " + HIGHLIGHT_BEGIN + " and " + HIGHLIGHT_END + ".")
 						.build();
 				}
 
 				@Override
 				public String execute(JsonNode arguments) {
 					var blob = context.getProject().getBlob(context.getBlobIdent(), true);
+					var lines = blob.getText().getLines();
+					var markRange = getMarkRange();
+					if (markRange != null) {
+						markRange.highlight(lines);
+					}
 					var map = Map.of(
 						"fileName", context.getBlobIdent().getName(),
-						"fileContent", blob.getText().getContent(),
+						"fileContent", Joiner.on('\n').join(lines),
 						"mediaType", blob.getMediaType().toString()
 					);
 					return convertToJson(map);
 				}
 
-			}, 
-			new ChatTool() {
-				
-				@Override
-				public ToolSpecification getSpecification() {
-					return ToolSpecification.builder()
-						.name("getCurrentSelection")
-						.description("Get current selection in json format. Empty object if no selection")
-						.build();
-				}
-
-				@Override
-				public String execute(JsonNode arguments) {
-					var map = new HashMap<String, Object>();
-					PlanarRange markRange = getMarkRange();
-					if (markRange != null) {
-						map.put("fromLineInclusive", markRange.getFromRow() + 1);
-						map.put("fromColumnInclusive", markRange.getFromColumn());
-						map.put("toLineInclusive", markRange.getToRow() + 1);
-						map.put("toColumnExclusive", markRange.getToColumn());
-					}
-					return convertToJson(map);
-				}
 			}
 		);
 	}
