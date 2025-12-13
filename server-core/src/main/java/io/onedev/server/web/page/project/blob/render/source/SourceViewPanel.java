@@ -1,7 +1,7 @@
 package io.onedev.server.web.page.project.blob.render.source;
 
-import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_END;
 import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_BEGIN;
+import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_END;
 import static io.onedev.server.web.translation.Translation._T;
 import static org.apache.wicket.ajax.attributes.CallbackParameter.explicit;
 
@@ -1446,16 +1446,14 @@ public class SourceViewPanel extends BlobViewPanel implements Positionable, Sear
 
 				@Override
 				public String execute(JsonNode arguments) {
-					var blob = context.getProject().getBlob(context.getBlobIdent(), true);
-					var lines = blob.getText().getLines();
+					var lines = context.getProject().getBlob(context.getBlobIdent(), true).getText().getLines();
 					var markRange = getMarkRange();
 					if (markRange != null) {
 						markRange.highlight(lines);
 					}
 					var map = Map.of(
 						"fileName", context.getBlobIdent().getName(),
-						"fileContent", Joiner.on('\n').join(lines),
-						"mediaType", blob.getMediaType().toString()
+						"fileContent", Joiner.on('\n').join(lines)
 					);
 					return convertToJson(map);
 				}
