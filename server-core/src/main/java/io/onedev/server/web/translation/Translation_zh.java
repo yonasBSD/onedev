@@ -1289,6 +1289,7 @@ public class Translation_zh extends TranslationResourceBundle {
 		m.put("Expiration Date:", "到期日期：");
 		m.put("Expire Date", "过期日期");
 		m.put("Expired", "已过期");
+		m.put("Explain selected text with AI", "用 AI 解释选定文本");
 		m.put("Explicit SSL (StartTLS)", "显式 SSL (StartTLS)");
 		m.put("Export", "导出");
 		m.put("Export All Queried Issues To...", "导出所有查询的工单到...");
@@ -4704,7 +4705,6 @@ public class Translation_zh extends TranslationResourceBundle {
 		m.put("{javax.validation.constraints.NotEmpty.message}", "不能为空");
 		m.put("{javax.validation.constraints.NotNull.message}", "不能为空");
 		m.put("{javax.validation.constraints.Size.message}", "至少需要指定一个值");
-		m.put("Explain selected text with AI", "用 AI 解释选定文本");
 	}
 		
 	@Override

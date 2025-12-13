@@ -1270,6 +1270,7 @@ public class Translation_ko extends TranslationResourceBundle {
 		m.put("Expiration Date:", "만료 날짜:");
 		m.put("Expire Date", "만료 날짜");
 		m.put("Expired", "만료됨");
+		m.put("Explain selected text with AI", "선택한 텍스트를 AI로 설명하기");
 		m.put("Explicit SSL (StartTLS)", "명시적 SSL (StartTLS)");
 		m.put("Export", "내보내기");
 		m.put("Export All Queried Issues To...", "모든 조회된 이슈를 내보내기...");
@@ -4685,7 +4686,6 @@ public class Translation_ko extends TranslationResourceBundle {
 		m.put("{javax.validation.constraints.NotEmpty.message}", "{javax.validation.constraints.NotEmpty.message}");
 		m.put("{javax.validation.constraints.NotNull.message}", "{javax.validation.constraints.NotNull.message}");
 		m.put("{javax.validation.constraints.Size.message}", "{javax.validation.constraints.Size.message}");
-		m.put("Explain selected text with AI", "선택한 텍스트를 AI로 설명하기");
 	}
 		
 	@Override

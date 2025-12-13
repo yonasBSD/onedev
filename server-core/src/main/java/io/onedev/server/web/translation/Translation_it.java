@@ -1270,6 +1270,7 @@ public class Translation_it extends TranslationResourceBundle {
 		m.put("Expiration Date:", "Data di Scadenza:");
 		m.put("Expire Date", "Data di Scadenza");
 		m.put("Expired", "Scaduto");
+		m.put("Explain selected text with AI", "Spiega il testo selezionato con l'IA");
 		m.put("Explicit SSL (StartTLS)", "SSL Esplicito (StartTLS)");
 		m.put("Export", "Esporta");
 		m.put("Export All Queried Issues To...", "Esporta Tutti i Problemi Interrogati In...");
@@ -4685,7 +4686,6 @@ public class Translation_it extends TranslationResourceBundle {
 		m.put("{javax.validation.constraints.NotEmpty.message}", "{javax.validation.constraints.NotEmpty.message}");
 		m.put("{javax.validation.constraints.NotNull.message}", "{javax.validation.constraints.NotNull.message}");
 		m.put("{javax.validation.constraints.Size.message}", "{javax.validation.constraints.Size.message}");
-		m.put("Explain selected text with AI", "Spiega il testo selezionato con l'IA");
 	}
 		
 	@Override
