@@ -1,5 +1,7 @@
 package io.onedev.server.web.component.diff.blob.text;
 
+import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_BEGIN;
+import static io.onedev.commons.utils.PlanarRange.HIGHLIGHT_END;
 import static io.onedev.server.codequality.BlobTarget.groupByLine;
 import static io.onedev.server.util.diff.DiffRenderer.toHtml;
 import static io.onedev.server.web.translation.Translation._T;
@@ -34,10 +36,13 @@ import org.jspecify.annotations.Nullable;
 import org.unbescape.html.HtmlEscape;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.ibm.icu.text.SpoofChecker;
 
+import dev.langchain4j.agent.tool.ToolSpecification;
 import io.onedev.commons.utils.LinearRange;
 import io.onedev.commons.utils.StringUtils;
 import io.onedev.server.OneDev;
@@ -53,6 +58,7 @@ import io.onedev.server.model.PullRequest;
 import io.onedev.server.search.code.hit.QueryHit;
 import io.onedev.server.security.SecurityUtils;
 import io.onedev.server.service.CodeCommentService;
+import io.onedev.server.service.support.ChatTool;
 import io.onedev.server.util.DateUtils;
 import io.onedev.server.util.Pair;
 import io.onedev.server.util.diff.DiffBlock;
@@ -68,13 +74,16 @@ import io.onedev.server.web.component.svg.SpriteImage;
 import io.onedev.server.web.component.symboltooltip.SymbolContext;
 import io.onedev.server.web.component.symboltooltip.SymbolTooltipPanel;
 import io.onedev.server.web.page.base.BasePage;
+import io.onedev.server.web.page.layout.LayoutPage;
 import io.onedev.server.web.page.project.blob.ProjectBlobPage;
 import io.onedev.server.web.page.project.commits.CommitDetailPage;
 import io.onedev.server.web.util.AnnotationInfo;
+import io.onedev.server.web.util.ChatToolAware;
 import io.onedev.server.web.util.CodeCommentInfo;
 import io.onedev.server.web.util.DiffPlanarRange;
+import io.onedev.server.web.util.WicketUtils;
 
-public class BlobTextDiffPanel extends Panel {
+public class BlobTextDiffPanel extends Panel implements ChatToolAware {
 
 	private final BlobChange change;
 	
@@ -315,6 +324,15 @@ public class BlobTextDiffPanel extends Panel {
 					case "setActive": 
 						onActive(target);
 						break;
+					case "explainSelection":
+						var range = getRange(params, "param1", "param2", "param3", "param4", "param5");
+						getAnnotationSupport().onMark(target, range);
+						var page = (LayoutPage) getPage();
+						page.getChatter().show(target, "Help me understand highlighted text. Display in " + getSession().getLocale().getDisplayLanguage());
+						script = String.format("onedev.server.blobTextDiff.mark($('#%s'), %s);", 
+								getMarkupId(), convertToJson(range));
+						target.appendJavaScript(script);
+						break;
 				}
 			}
 
@@ -478,10 +496,17 @@ public class BlobTextDiffPanel extends Panel {
 		translations.put("show-comment", _T("Click to show comment of marked text"));
 		translations.put("loading", _T("Loading..."));
 		translations.put("invalid-selection", _T("Invalid selection, click for details"));
+		var page = (LayoutPage) getPage();
+		if (getAnnotationSupport() != null 
+				&& WicketUtils.isSubscriptionActive() 
+				&& !page.getChatter().getEntitledAis().isEmpty()) {
+			translations.put("explain-selection", _T("Explain selected text with AI"));
+		}
 		for (var severity: CodeProblem.Severity.values())
 			translations.put(severity.name(), _T("severity:" + severity.name()));
 		translations.put("add-problem-comment", _T("Add comment"));
 
+		var jsonOfMarkRange = convertToJson(markRange);
 		String script = String.format("onedev.server.blobTextDiff.onDomReady('%s', '%s', '%s', '%s', '%s', '%s', %s, %s, %s, %s, %s, %s, %s);", 
 				getMarkupId(), symbolTooltip.getMarkupId(), 
 				change.getOldBlobIdent().revision, 
@@ -489,18 +514,15 @@ public class BlobTextDiffPanel extends Panel {
 				change.getOldBlobIdent().path!=null? escapeJavaScript(change.getOldBlobIdent().path):"",
 				change.getNewBlobIdent().path!=null? escapeJavaScript(change.getNewBlobIdent().path):"",
 				callback, blameMessageBehavior.getCallback(),
-				convertToJson(markRange), convertToJson(openCommentInfo), 
+				jsonOfMarkRange, convertToJson(openCommentInfo), 
 				convertToJson(annotationInfoModel.getObject()), 
 				commentContainerId, convertToJson(translations));
 		
 		response.render(OnDomReadyHeaderItem.forScript(script));
 
-		String jsonOfMarkRange;
-		if (RequestCycle.get().find(AjaxRequestTarget.class) == null && markRange != null)
-			jsonOfMarkRange = convertToJson(markRange);
-		else
-			jsonOfMarkRange = "undefined";
-		script = String.format("onedev.server.blobTextDiff.onLoad('%s', %s);", getMarkupId(), jsonOfMarkRange);
+		script = String.format("onedev.server.blobTextDiff.onLoad('%s', %s);", 
+				getMarkupId(), 
+				RequestCycle.get().find(AjaxRequestTarget.class) == null? jsonOfMarkRange: "null");
 		response.render(OnLoadHeaderItem.forScript(script));
 	}
 	
@@ -1073,6 +1095,50 @@ public class BlobTextDiffPanel extends Panel {
 
 	private boolean isConfusable(String text1, String text2) {
 		return confusableChecker.areConfusable(text1, text2) != 0;	
+	}
+
+	@Override
+	public List<ChatTool> getChatTools() {
+		var tools = new ArrayList<ChatTool>();
+		if (getAnnotationSupport() != null) {
+			var markRange = getAnnotationSupport().getMarkRange();
+			if (markRange != null) {
+				tools.add(new ChatTool() {
+
+					@Override
+					public ToolSpecification getSpecification() {
+						return ToolSpecification.builder()
+							.name("getHighlightedTextInformation")
+							.description(String.format("""
+								Get information about the highlighted text in JSON format. The fileName and fileContent 
+								properties represent the name and content of the file that contains the highlighted 
+								text. The highlighted text is marked with %s and %s in the file content.								""", HIGHLIGHT_BEGIN, HIGHLIGHT_END))
+							.build();
+					}
+
+					@Override
+					public String execute(JsonNode arguments) {
+						String fileName;
+						List<String> fileLines;
+						if (markRange.isLeftSide()) {
+							fileName = change.getOldBlobIdent().getName();
+							fileLines = change.getOldText().getLines();
+						} else {
+							fileName = change.getNewBlobIdent().getName();
+							fileLines = change.getNewText().getLines();
+						}
+						markRange.highlight(fileLines);
+						var map = Map.of(
+							"fileName", fileName,
+							"fileContent", Joiner.on('\n').join(fileLines)
+						);
+						return convertToJson(map);
+					}
+
+				});				
+			}
+		}
+		return tools;
 	}
 	
 	private static class BlameInfo implements Serializable {

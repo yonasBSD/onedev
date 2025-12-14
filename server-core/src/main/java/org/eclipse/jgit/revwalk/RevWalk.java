@@ -267,7 +267,6 @@ public class RevWalk implements Iterable<RevCommit>, AutoCloseable {
 		return new DateRevQueue(g);
 	}
 
-	@SuppressWarnings("boxing")
 	private static boolean usePriorityQueue() {
 		return Optional
 				.ofNullable(System.getProperty("REVWALK_USE_PRIORITY_QUEUE")) //$NON-NLS-1$
