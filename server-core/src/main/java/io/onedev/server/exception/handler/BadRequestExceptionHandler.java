@@ -1,8 +1,8 @@
 package io.onedev.server.exception.handler;
 
 import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.BadRequestException;
 
+import io.onedev.server.exception.BadRequestException;
 import io.onedev.server.exception.HttpResponse;
 
 public class BadRequestExceptionHandler extends AbstractExceptionHandler<BadRequestException> {

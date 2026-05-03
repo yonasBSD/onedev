@@ -22,7 +22,7 @@ public class ValidationExceptionMapper implements ExceptionMapper<ValidationExce
 		var errorMessage = t.getMessage();
 		if (errorMessage == null)
 			errorMessage = "Validation error";
-		return Response.status(HttpServletResponse.SC_NOT_ACCEPTABLE).entity(errorMessage).build();
+		return Response.status(HttpServletResponse.SC_BAD_REQUEST).entity(errorMessage).build();
     }
     
 }

@@ -313,8 +313,6 @@ public class DefaultJobService implements JobService, Runnable, CodePullAuthoriz
 			}
 
 			return doSubmit(user, project, commitId, jobName, paramMap, refName, request, issue, reason);
-		} catch (ValidationException e) {
-			throw new BadRequestException(e.getMessage());
 		} catch (Throwable t) {
 			throw ExceptionUtils.unchecked(t);
 		} finally {
