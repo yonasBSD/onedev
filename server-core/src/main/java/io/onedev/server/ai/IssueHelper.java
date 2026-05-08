@@ -37,6 +37,11 @@ public class IssueHelper {
         summary.remove("pinDate");
         summary.remove("boardPosition");
         summary.remove("numberScopeId");
+        summary.remove("totalEstimatedTime");
+        summary.remove("totalSpentTime");
+        summary.remove("ownEstimatedTime");
+        summary.remove("ownSpentTime");
+        summary.remove("progress");
         summary.put("reference", issue.getReference().toString(currentProject));
         summary.remove("submitterId");
         summary.put("submitter", issue.getSubmitter().getName());

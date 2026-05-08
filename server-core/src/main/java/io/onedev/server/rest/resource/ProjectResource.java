@@ -296,12 +296,14 @@ public class ProjectResource {
 		checkProjectCreationPermission(subject, project.getParent());
 	
 		if (project.getParent() != null && project.isSelfOrAncestorOf(project.getParent())) 
-			throw new ExplicitException("Can not use current or descendant project as parent");
+			throw new NotAcceptableException("Can not use current or descendant project as parent");
 		
 		checkProjectNameDuplication(project);		
 
 		if (project.getForkedFrom() != null) {
 			var forkedFrom = project.getForkedFrom();
+			if (!SecurityUtils.canReadCode(subject, forkedFrom))
+				throw new UnauthorizedException("Not authorized to read code of project '" + forkedFrom.getPath() + "'");
 			project.getBuildSetting().setBuildPreservations(forkedFrom.getBuildSetting().getBuildPreservations());
 			project.getBuildSetting().setCachePreserveDays(forkedFrom.getBuildSetting().getCachePreserveDays());
 			project.getBuildSetting().setJobProperties(forkedFrom.getBuildSetting().getJobProperties());
@@ -329,15 +331,20 @@ public class ProjectResource {
 	@Path("/{projectId}")
 	@POST
 	public Response updateProject(@PathParam("projectId") Long projectId, @NotNull @Valid ProjectData data) {
-		Project project = projectService.load(projectId);		
-		var oldAuditContent = VersionedXmlDoc.fromBean(ProjectData.from(project)).toXML();
-		data.populate(project, projectService);
-		
-		Project parent = data.getParentId() != null? projectService.load(data.getParentId()) : null;
-		Long oldParentId = Project.idOf(project.getParent());
+		Project project = projectService.load(projectId);
 
 		var subject = SecurityUtils.getSubject();
-		if (!Objects.equals(oldParentId, Project.idOf(parent))) 
+		if (!SecurityUtils.canManageProject(subject, project))
+			throw new UnauthorizedException();
+
+		Long oldParentId = Project.idOf(project.getParent());
+		var oldAuditContent = VersionedXmlDoc.fromBean(ProjectData.from(project)).toXML();
+
+		data.populate(project, projectService);
+
+		Project parent = data.getParentId() != null? projectService.load(data.getParentId()) : null;
+
+		if (!Objects.equals(oldParentId, Project.idOf(parent)))
 			checkProjectCreationPermission(subject, parent);
 
 		if (parent != null && project.isSelfOrAncestorOf(parent))
@@ -345,13 +352,9 @@ public class ProjectResource {
 
 		checkProjectNameDuplication(project);
 
-		if (!SecurityUtils.canManageProject(subject, project)) {
-			throw new UnauthorizedException();
-		} else {
-			projectService.update(project);
-			auditService.audit(project, "changed project via RESTful API", oldAuditContent, 
-					VersionedXmlDoc.fromBean(ProjectData.from(project)).toXML());
-		}
+		projectService.update(project);
+		auditService.audit(project, "changed project via RESTful API", oldAuditContent,
+				VersionedXmlDoc.fromBean(ProjectData.from(project)).toXML());
 
 		return Response.ok().build();
 	}

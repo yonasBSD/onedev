@@ -115,7 +115,7 @@ public class RepositoryResource {
 	@POST
 	public Response setDefaultBranch(@PathParam("projectId") Long projectId, @NotNull String defaultBranch) {
 		Project project = projectService.load(projectId);
-		if (!SecurityUtils.canWriteCode(project))
+		if (!SecurityUtils.canManageProject(project))
 			throw new UnauthorizedException();
 
 		try {

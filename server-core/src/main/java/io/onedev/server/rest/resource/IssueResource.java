@@ -31,6 +31,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.apache.shiro.authz.UnauthorizedException;
+import org.apache.shiro.subject.Subject;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -120,12 +121,26 @@ public class IssueResource {
 	@Api(order=100)
 	@Path("/{issueId}")
     @GET
-    public Issue getIssue(@PathParam("issueId") Long issueId) {
+    public Map<String, Object> getIssue(@PathParam("issueId") Long issueId) {
 		Issue issue = issueService.load(issueId);
-    	if (!SecurityUtils.canAccessIssue(issue)) 
+		var subject = SecurityUtils.getSubject();
+    	if (!SecurityUtils.canAccessIssue(subject, issue)) 
 			throw new UnauthorizedException();
-    	return issue;
+		return getIssueMap(subject, issue);
     }
+
+	private Map<String, Object> getIssueMap(Subject subject, Issue issue) {
+		var typeReference = new TypeReference<Map<String, Object>>() {};		
+		var issueMap = objectMapper.convertValue(issue, typeReference);
+		if (!SecurityUtils.canAccessTimeTracking(issue.getProject())) {
+			issueMap.remove("totalEstimatedTime");
+			issueMap.remove("totalSpentTime");
+			issueMap.remove("ownEstimatedTime");
+			issueMap.remove("ownSpentTime");
+			issueMap.remove("progress");
+		}
+		return issueMap;
+	}
 
 	@Api(order=200, exampleProvider = "getFieldsExample")
 	@Path("/{issueId}/fields")
@@ -176,7 +191,7 @@ public class IssueResource {
 	@GET
 	public Collection<IssueWork> getWorks(@PathParam("issueId") Long issueId) {
 		Issue issue = issueService.load(issueId);
-		if (!SecurityUtils.canAccessIssue(issue))
+		if (!SecurityUtils.canAccessIssue(issue) || !SecurityUtils.canAccessTimeTracking(issue.getProject()))
 			throw new UnauthorizedException();
 		return issue.getWorks();
 	}
@@ -269,10 +284,9 @@ public class IssueResource {
 			throw new NotAcceptableException("Error parsing query", e);
 		}
 
-		var typeReference = new TypeReference<Map<String, Object>>() {};		
 		var issues = new ArrayList<Map<String, Object>>();
 		for (var issue: issueService.query(subject, null, parsedQuery, false, offset, count)) {
-			var issueMap = objectMapper.convertValue(issue, typeReference);
+			var issueMap = getIssueMap(subject, issue);
 			if (withFields != null && withFields)
 				issueMap.put("fields", issue.getFields());
 			issues.add(issueMap);
